@@ -1,8 +1,8 @@
 import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:ocr/result_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -34,8 +34,9 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   bool _isPermissionGranted = false;
-
   late final Future<void> _future;
+  late File? _image;
+  bool _isImageLoaded = false;
 
   // Add this controller to be able to control de camera
   CameraController? _cameraController;
@@ -73,61 +74,119 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: _future,
-      builder: (BuildContext context, snapshot) {
-        return Stack(
-          children: [
-            // Show the camera feed behind everything
-            if (_isPermissionGranted)
-              FutureBuilder<List<CameraDescription>>(
-                future: availableCameras(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    _initCameraController(snapshot.data!);
-
-                    return Center(child: CameraPreview(_cameraController!));
-                  } else {
-                    return const LinearProgressIndicator();
-                  }
-                },
+        future: _future,
+        builder: (BuildContext context, snapshot) {
+          return Column(children: [
+            if (_isImageLoaded && _image != null)
+              Expanded(
+                child: Center(
+                  child: Image.file(_image!),
+                ),
               ),
-            Scaffold(
-              appBar: AppBar(
-                title: const Text('Text Recognition Sample'),
-              ),
-              // Set the background to transparent so you can see the camera preview
-              backgroundColor: _isPermissionGranted ? Colors.transparent : null,
-              body: _isPermissionGranted
-                  ? Column(
-                      children: [
-                        Expanded(
-                          child: Container(),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.only(bottom: 30.0),
-                          child: Center(
-                            child: ElevatedButton(
-                              onPressed: _scanImage,
-                              child: const Text('Scan text'),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Center(
-                      child: Container(
-                        padding: const EdgeInsets.only(left: 24.0, right: 24.0),
-                        child: const Text(
-                          'Camera permission denied',
-                          textAlign: TextAlign.center,
-                        ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(30.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _captureImage,
+                        child: const Text('Camera'),
                       ),
-                    ),
+                      ElevatedButton(
+                        onPressed: _selectImage,
+                        child: const Text('Gallery'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+            if (_isImageLoaded && _image != null)
+              Container(
+                padding: const EdgeInsets.only(bottom: 30.0),
+                child: Center(
+                  child: ElevatedButton(
+                    onPressed: _scanImage,
+                    child: const Text('Scan text'),
+                  ),
+                ),
+              ),
+          ]);
+        }
+
+        //   Stack(
+        //   children: [
+        //     // Show the camera feed behind everything
+        //     if (_isPermissionGranted)
+        //       FutureBuilder<List<CameraDescription>>(
+        //         future: availableCameras(),
+        //         builder: (context, snapshot) {
+        //           if (snapshot.hasData) {
+        //             _initCameraController(snapshot.data!);
+        //
+        //             return Center(child: CameraPreview(_cameraController!));
+        //           } else {
+        //             return const LinearProgressIndicator();
+        //           }
+        //         },
+        //       ),
+        //     Scaffold(
+        //       appBar: AppBar(
+        //         title: const Text('Text Recognition Sample'),
+        //       ),
+        //       // Set the background to transparent so you can see the camera preview
+        //       backgroundColor: _isPermissionGranted ? Colors.transparent : null,
+        //       body: _isPermissionGranted
+        //           ? Column(
+        //               children: [
+        //                 Expanded(
+        //                   child: Container(),
+        //                 ),
+        //                 Container(
+        //                   padding: const EdgeInsets.only(bottom: 30.0),
+        //                   child: Row(
+        //                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        //                     children: [
+        //                       ElevatedButton(
+        //                         onPressed: _captureImage,
+        //                         child: const Text('Camera'),
+        //                       ),
+        //                       ElevatedButton(
+        //                         onPressed: _selectImage,
+        //                         child: const Text('Gallery'),
+        //                       ),
+        //                     ],
+        //                   ),
+        //                 ),
+        //                 if (_isImageLoaded && _image != null)
+        //                   Container(
+        //                     padding: const EdgeInsets.only(bottom: 30.0),
+        //                     child: Center(
+        //                       child: ElevatedButton(
+        //                         onPressed: _scanImage,
+        //                         child: const Text('Scan text'),
+        //                       ),
+        //                     ),
+        //                   ),
+        //               ],
+        //             )
+        //           : Center(
+        //               child: Container(
+        //                 padding: const EdgeInsets.only(left: 24.0, right: 24.0),
+        //                 child: const Text(
+        //                   'Camera permission denied',
+        //                   textAlign: TextAlign.center,
+        //                 ),
+        //               ),
+        //             ),
+        //     ),
+        //   ],
+        // );
+
         );
-      },
-    );
   }
 
   Future<void> _requestCameraPermission() async {
@@ -182,19 +241,40 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     setState(() {});
   }
 
+  Future<void> _captureImage() async {
+    final imagePicker = ImagePicker();
+    final pickedImage = await imagePicker.pickImage(source: ImageSource.camera);
+
+    if (pickedImage != null) {
+      setState(() {
+        _image = File(pickedImage.path);
+        _isImageLoaded = true;
+      });
+    }
+  }
+
+  Future<void> _selectImage() async {
+    final imagePicker = ImagePicker();
+    final pickedImage =
+        await imagePicker.pickImage(source: ImageSource.gallery);
+
+    if (pickedImage != null) {
+      setState(() {
+        _image = File(pickedImage.path);
+        _isImageLoaded = true;
+      });
+    }
+  }
+
   Future<void> _scanImage() async {
-    if (_cameraController == null) return;
+    if (_image == null) return;
 
     final navigator = Navigator.of(context);
 
     try {
-      final pictureFile = await _cameraController!.takePicture();
-
-      final file = File(pictureFile.path);
-
-      final inputImage = InputImage.fromFile(file);
+      final inputImage = InputImage.fromFile(_image!);
       final recognizedText = await textRecognizer.processImage(inputImage);
-
+      print(recognizedText.text);
       await navigator.push(
         MaterialPageRoute(
           builder: (BuildContext context) =>
@@ -209,4 +289,32 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       );
     }
   }
+
+  // Future<void> _scanImage() async {
+  //   if (_cameraController == null) return;
+  //
+  //   final navigator = Navigator.of(context);
+  //
+  //   try {
+  //     final pictureFile = await _cameraController!.takePicture();
+  //
+  //     final file = File(pictureFile.path);
+  //
+  //     final inputImage = InputImage.fromFile(file);
+  //     final recognizedText = await textRecognizer.processImage(inputImage);
+  //
+  //     await navigator.push(
+  //       MaterialPageRoute(
+  //         builder: (BuildContext context) =>
+  //             ResultScreen(text: recognizedText.text),
+  //       ),
+  //     );
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(
+  //         content: Text('An error occurred when scanning text'),
+  //       ),
+  //     );
+  //   }
+  // }
 }
